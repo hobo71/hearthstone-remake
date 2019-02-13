@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title> Deck building...</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/p5.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/addons/p5.dom.js"></script>
+	<script src="https://pastebin.com/raw/BXpHm5xW"> </script>
+	<script src="https://pastebin.com/raw/dWv5dD07"></script>
+  	<script src='/socket.io/socket.io.js'> </script>
+
+</head>
+<body>
+<style>
+canvas { position:fixed; top:0; left:0; z-index:1; }
+#contenu { position:relative; z-index:2; } 
+button {
+	z-index: 1;	
+} 
+
+</style>
+<script>
+var socket = io();
+
+function loadJSON(callback) {   
+
+    var xobj = new XMLHttpRequest();
+        xobj.overrideMimeType("application/json");
+    xobj.open('GET', '../cards.json', true); // Replace 'my_data' with the path to your file
+    xobj.onreadystatechange = function () {
+          if (xobj.readyState == 4 && xobj.status == "200") {
+            // Required use of an anonymous callback as .open will NOT return a value but simply returns undefined in asynchronous mode
+            callback(xobj.responseText);
+          }
+    };
+    xobj.send(null);  
+ }
+ 
+
+class Card{
+	constructor(){
+		this.width = 300/2.4;
+		this.height = 500/2.4;
+		this.x = 0;
+		this.y = 0;
+		this.minionX = 0;
+		this.minionY = 0;
+		this.minionWidth = 0;
+		this.minionHeight = 0;
+		this.selected = false;
+		this.hover = false;
+		this.holdingClick = false;
+		this.turn = false;
+ 
+		this.img = undefined;
+		}
+
+	showCard(){
+		// card back
+		//this.width+=1.2;
+	 	//this.height+=1.1;
+		textAlign(CENTER, CENTER)
+		strokeWeight(10);
+ 
+			stroke(0)
+		fill(232, 222, 157)
+		rect(this.x, this.y, this.width, this.height)
+		
+		// img 
+  		push();
+  		 blendMode(DARKEST)
+  		 print(this.width)
+  		image( this.img, this.x, this.y, this.width, this.height/1.2);
+		pop();
+		// card cost
+		stroke(0)
+		strokeWeight(1)
+		fill(42, 167, 234)
+		ellipse(this.x+15, this.y+15, (50*width)/1920 );
+		strokeWeight(3)
+		stroke(0)
+		textSize(29)
+		fill(255)
+		textStyle(BOLD);
+		text( this.stats.cost, this.x, this.y,  30,  30)
+		// bottom part 
+		fill(102, 83, 78)
+	 	rect(this.x, this.y + this.height-this.height/3, this.width, this.height/3)		
+ 		// text description
+ 		textSize((this.width+this.height)/35)
+ 		fill(0)
+ 		noStroke()
+ 		textAlign(CENTER, CENTER)
+ 		// text( "Charge", this.x+this.width/3, this.y + this.height-this.height/4, )
+ 		text(this.stats.description, this.x, this.y + this.height-this.height/3, this.width, this.height/3)
+		// atk
+		noStroke()
+		fill(247, 156, 7)
+		rect(this.x, this.y+this.height-20, 30, 20)
+
+		
+		strokeWeight(3)
+		stroke(0)
+		fill(255)
+		textSize(22)
+		textAlign(LEFT, BOTTOM)
+		text( this.stats.atk, this.x+3, this.y, this.width, this.height)
+
+		// def
+		noStroke()
+		fill(168, 28, 37)
+		rect(this.x+this.width-30, this.y+this.height-20, 30, 20)
+
+		fill(255)
+		stroke(0)
+
+		textAlign(RIGHT, BOTTOM)
+		text( this.stats.def, this.x+3, this.y, this.width-3, this.height)
+		// name 
+ 		textAlign(CENTER, CENTER)
+
+		fill(192, 163, 125)
+		rect(this.x, this.y + this.height-this.height/3 - this.height/10, this.width, this.height/10)
+		fill(255)
+		strokeWeight(4)
+		stroke(0)
+		textSize(19)
+
+		text( this.stats.name , this.x, this.y + this.height-this.height/3 - this.height/10, this.width, this.height/10)
+
+	}
+	detecthover(){
+		if (collidePointRect(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
+			this.hover = true;
+
+		} else  {
+			this.hover = false;
+		} 
+	}
+
+ 
+
+}
+  
+var actual_JSON;
+var hand = undefined
+var cardToShow = [];
+function isInArray(ind){
+	for (var i = 0; i < cardToShow.length; i++) {
+		if (cardToShow[i].stats.jsonIndex == ind) 
+		return true 
+	}
+	return false
+}
+var minions_JSON = [];
+loadJSON(function(response) {
+  // Parse JSON string into object
+    actual_JSON = JSON.parse(response);
+    for (var i = 0; i < actual_JSON.length; i++) {
+    	if (actual_JSON[i].type === "MINION" && actual_JSON[i].set === "CORE") {
+    		minions_JSON.push(actual_JSON[i])
+    	}
+    }
+    loadCards()
+});
+var index = 0;
+
+function loadCards(){
+	cardToShow = [];
+	for (var i = 0; i < 8; i++) {
+		var c = new Card();
+		c.stats = {
+			cost : minions_JSON[index+i ].cost,
+			name : minions_JSON[index+i ].name,
+			rarety : minions_JSON[index+i ].rarity,
+			type : "minion",
+			atk : minions_JSON[index+i ].attack,
+			def : minions_JSON[index+i ].health,
+			canAttack : false,
+			artId: minions_JSON[index+i ].id,
+			description: minions_JSON[index+i ].text,
+			jsonIndex : index+i,
+			dbfId : minions_JSON[index+i ].dbfId
+		}
+		c.place = "notInGame"
+		c.width=200;
+		c.height=300;
+		if (i>=4) {
+			c.y+=c.height+200;
+			c.x = 50+(i-4)*c.width+( (i-4)*50)
+		} else {
+			c.y+=100;
+			c.x = 50+i*c.width+(i*50) 
+		}
+		c.img = loadImage("/cardImage/"+c.stats.artId+".jpg", 100, 100);
+		cardToShow.push(c)
+	}	
+
+}
+var idle_yourTurn, pressed_yourTurn;
+function preload(){
+	hsFont = loadFont("hsfont.otf")
+	idle_yourTurn =  "image/idle_yourTurn.cur" 
+	pressed_yourTurn = "image/pressed_yourTurn.cur" 
+}
+var deckList = []; // stats
+function setup() {
+	textFont(hsFont)
+	createCanvas(1920, 1080)
+}
+
+function draw(){
+	background(0);
+	for (var i = 0; i < cardToShow.length; i++) {
+		cardToShow[i].detecthover();
+		cardToShow[i].showCard();
+	}
+	text("Page " + index/8 + "/" + int(minions_JSON.length/8), 100, 50)
+	text(deckList.length+"/30", 1600, 50+31* 24)
+	for (var i = 0; i < deckList.length; i++) {
+ 		push()
+		fill(42, 167, 234)
+ 		ellipse(1600-300, 50+i*24, 24)
+ 		pop()
+ 		push()
+ 		textSize(23)
+ 		text(deckList[i].name, 1600, 50+i* 24)
+		pop()
+	}
+	if (mouseIsPressed)
+		cursor(pressed_yourTurn)
+	else
+		cursor(idle_yourTurn)
+
+}
+
+
+function windowResized() {
+	resizeCanvas(1920, 1080)
+}
+
+function occurence(arr, item){
+	var nbr = 0;
+	for (var i = 0; i < arr.length; i++) {
+		if (item == arr[i])
+			nbr++
+	}
+	return nbr
+
+}
+function mouseReleased(){
+	for (var i = 0; i < cardToShow.length; i++) {
+		if (cardToShow[i].hover && deckList.length < 30 && occurence(deckList, cardToShow[i].stats) < 2) {
+			deckList.push(cardToShow[i].stats)
+
+		}
+	}
+
+	if (deckList.length === 30) {
+
+	}
+}
+
+function keyPressed() {
+  if (keyCode === LEFT_ARROW) {
+   	index-=8;
+  } else if (keyCode === RIGHT_ARROW) {
+	index+=8;
+  }
+	loadCards()
+
+
+}
+	
+
+
+</script>
+</body>
+</html>
