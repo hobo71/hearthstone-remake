@@ -1,4 +1,4 @@
-A multiplayer remake of the game "Hearthstone", in the browser.
+A multiplayer remake of the game "Hearthstone", in the browser with socket.io and p5.js.
 
 # Hearthstone remake.
 ---------------------
